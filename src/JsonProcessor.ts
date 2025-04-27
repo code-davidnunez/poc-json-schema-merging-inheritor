@@ -215,13 +215,13 @@ export class JsonProcessor {
   mergeAllWithMetadata(
     sourceObjects: SourceObject[],
     options: MergeOptions = {}
-  ): any {
+  ): { mergedObject: ObjectWithMetadata; metadata: Record<string, PathMetadata> } {
     if (!sourceObjects || sourceObjects.length === 0) {
-      return {};
+      return { mergedObject: {}, metadata: {} };
     }
 
     let finalMergedData: any = {};
-    const rootChildMetadataMap = new Map<string, PathMetadata>();
+    const metadata: Record<string, PathMetadata> = {};
 
     for (const sourceObject of sourceObjects) {
       finalMergedData = this._mergeRecursiveWithMetadata(
@@ -230,11 +230,29 @@ export class JsonProcessor {
         sourceObject.id,
         options,
         '',
-        rootChildMetadataMap
+        new Map<string, PathMetadata>()
       );
+
+      // Collect metadata recursively and store it in the metadata object
+      const collectMetadata = (obj: ObjectWithMetadata) => {
+        if (obj && typeof obj === 'object') {
+          for (const key in obj) {
+            if (Object.prototype.hasOwnProperty.call(obj, key)) {
+              const value = obj[key];
+              const metadataForKey = obj[GET_METADATA_SYMBOL]?.(key);
+              if (metadataForKey) {
+                metadata[metadataForKey.path] = metadataForKey;
+              }
+              collectMetadata(value);
+            }
+          }
+        }
+      };
+
+      collectMetadata(finalMergedData);
     }
 
-    return finalMergedData;
+    return { mergedObject: finalMergedData, metadata };
   }
 
   private _mergeRecursiveWithMetadata(
